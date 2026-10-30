@@ -2,6 +2,10 @@
 
 Statische, deutschsprachige Laborverwaltung für den Lesezeichen-Hub. Die Anwendung speichert ihre Datensätze im Browser in IndexedDB und benötigt zur Laufzeit keinen Internetzugang und kein Backend.
 
+## Versionierung
+
+Bei jeder Änderung wird die Projektversion angepasst. `version.json`, `package.json`, `package-lock.json` und die sichtbare Versionsanzeige in `index.html` tragen dieselbe Version. Neue Funktionen erhöhen die Minor-Version, Fehlerkorrekturen die Patch-Version. Die IndexedDB-Schema-Version wird unabhängig davon nur bei Datenbankänderungen erhöht.
+
 ## Start und Integration
 
 Der Lesezeichen-Hub kann dieses Repository als Modul laden. `index.html` liegt im Repository-Hauptverzeichnis und verwendet ausschließlich relative Ressourcenpfade. Der Hub liefert die Dateien unter `/modules/<id>/index.html` aus. Lokal genügt `node tools/serve.mjs` und danach `http://127.0.0.1:8765`; dieser Entwicklungsserver benötigt keine Installation. `file://` ist wegen IndexedDB- und Worker-Beschränkungen kein unterstützter Startweg.

@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {dateValue,days,mean,median,csv} from '../js/utils.js';import {summarize} from '../js/statistics.js';
+import {readFileSync} from 'node:fs';
 import {scaleRecipe,recipeTotals} from '../js/recipes.js';
 import {formatSerial,canonicalSerial,normalizeSnapshotSerials} from '../js/serials.js';
 test('lokale Kalenderdaten und fehlende Werte',()=>{assert.equal(dateValue('31.02.2025'),null);assert.equal(dateValue('02.03.2025'),'2025-03-02');assert.equal(days('2025-03-01','2025-03-03'),2);assert.equal(days(null,'2025-03-03'),null)});
@@ -8,3 +9,4 @@ test('CSV schützt Formelanfänge',()=>assert.match(csv([{name:'=1+1'}],['name']
 test('Rezeptskalierung trennt Masse und Volumen',()=>{const scaled=scaleRecipe([{name:'A',amount:300,unit:'g'},{name:'Wasser',amount:500,unit:'ml'}],2);const totals=recipeTotals(scaled);assert.equal(totals.massG,600);assert.equal(totals.volumeMl,1000)});
 test('Kennungsformat und Großschreibung',()=>{assert.equal(formatSerial('inoculations',2026,12),'BEP-2026-0012');assert.equal(canonicalSerial(' bep-2026-0012 '),'BEP-2026-0012')});
 test('Alte Backups behalten erste Kennung und reparieren Dubletten',()=>{const snapshot={settings:[],substrates:[{id:'1',number:'SUB-2026-0004'},{id:'2',number:'sub-2026-0004'},{id:'3',number:''}],cultures:[{id:'c',name:'Alt'}],inoculations:[],experiments:[]};normalizeSnapshotSerials(snapshot);assert.equal(snapshot.substrates[0].number,'SUB-2026-0004');assert.equal(new Set(snapshot.substrates.map(x=>x.codeKey)).size,3);assert.match(snapshot.cultures[0].code,/^KUL-\d{4}-0001$/)});
+test('Manifest, Paket und Versionsanzeige stimmen überein',()=>{const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');const manifest=JSON.parse(read('version.json')),pkg=JSON.parse(read('package.json')),lock=JSON.parse(read('package-lock.json'));assert.equal(manifest.version,pkg.version);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);assert.match(read('index.html'),new RegExp(`LABOR · ${pkg.version.replaceAll('.','\\.')}`))});
