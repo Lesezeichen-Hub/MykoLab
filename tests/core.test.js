@@ -2,6 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import {dat
 import {readFileSync} from 'node:fs';
 import {scaleRecipe,recipeTotals} from '../js/recipes.js';
 import {formatSerial,canonicalSerial,normalizeSnapshotSerials} from '../js/serials.js';
+import {contextFor,timelineFor,intervalFor,growthSeries} from '../js/timelines.js';
 test('lokale Kalenderdaten und fehlende Werte',()=>{assert.equal(dateValue('31.02.2025'),null);assert.equal(dateValue('02.03.2025'),'2025-03-02');assert.equal(days('2025-03-01','2025-03-03'),2);assert.equal(days(null,'2025-03-03'),null)});
 test('Mittelwert und Median',()=>{assert.equal(mean([1,3,8]),4);assert.equal(median([1,3,8]),3);assert.equal(median([]),null)});
 test('Statistik addiert unbekannte und unterschiedliche Massearten nicht',()=>{const data={inoculations:[{id:'a',status:'Abgeschlossen',date:'2025-01-01',endDate:'2025-01-03'}],cultures:[],measurements:[],harvests:[{inoculationId:'a',amount:4,unit:'g',massType:'Frisch'},{inoculationId:'a',amount:2,unit:'g',massType:'Trocken'}]};const s=summarize(data);assert.equal(s.averageDays,2);assert.equal(s.groups['Frisch · g'][0],4);assert.equal(s.groups['Trocken · g'][0],2)});
@@ -10,3 +11,30 @@ test('Rezeptskalierung trennt Masse und Volumen',()=>{const scaled=scaleRecipe([
 test('Kennungsformat und Großschreibung',()=>{assert.equal(formatSerial('inoculations',2026,12),'BEP-2026-0012');assert.equal(canonicalSerial(' bep-2026-0012 '),'BEP-2026-0012')});
 test('Alte Backups behalten erste Kennung und reparieren Dubletten',()=>{const snapshot={settings:[],substrates:[{id:'1',number:'SUB-2026-0004'},{id:'2',number:'sub-2026-0004'},{id:'3',number:''}],cultures:[{id:'c',name:'Alt'}],inoculations:[],experiments:[]};normalizeSnapshotSerials(snapshot);assert.equal(snapshot.substrates[0].number,'SUB-2026-0004');assert.equal(new Set(snapshot.substrates.map(x=>x.codeKey)).size,3);assert.match(snapshot.cultures[0].code,/^KUL-\d{4}-0001$/)});
 test('Manifest, Paket und Versionsanzeige stimmen überein',()=>{const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');const manifest=JSON.parse(read('version.json')),pkg=JSON.parse(read('package.json')),lock=JSON.parse(read('package-lock.json'));assert.equal(manifest.version,pkg.version);assert.equal(lock.version,pkg.version);assert.equal(lock.packages[''].version,pkg.version);assert.match(read('index.html'),new RegExp(`LABOR · ${pkg.version.replaceAll('.','\\.')}`))});
+test('Ertragsmittelwerte zählen unabhängige Ansätze und normalisieren Masse',()=>{
+	const data={inoculations:[{id:'first',status:'Kontaminiert',date:'2026-01-01',contaminatedDate:'2026-01-11'},{id:'second',status:'Aktiv',date:'2026-01-01'},{id:'missing',status:'Aktiv',date:'2026-01-01'}],harvests:[{inoculationId:'first',amount:10,unit:'g',massType:'Frisch'},{inoculationId:'first',amount:0.02,unit:'kg',massType:'Frisch'},{inoculationId:'second',amount:50,unit:'g',massType:'Frisch'}]};
+	const result=summarize(data);
+	assert.equal(result.yields[0].average,40);
+	assert.equal(result.yields[0].n,2);
+	assert.equal(result.yields[0].total,80);
+	assert.equal(result.contamination,1/3);
+	assert.equal(result.medianContaminationDays,10);
+});
+test('Kurzinfo bewahrt Rezept und Herkunft, Zeitlinie dedupliziert Messereignisse',()=>{
+	const item={id:'first',serial:'BEP-1',date:'2026-01-01',status:'Aktiv',recipeSnapshot:{name:'Altes Rezept'},sourceSnapshot:{species:{name:'Alter Pilz'}}};
+	const data={measurements:[{id:'measurement',inoculationId:'first',date:'2026-01-03',kind:'Phase',phase:'Fruchtbildung'}],harvests:[{id:'harvest',inoculationId:'first',date:'2026-01-05',amount:12,unit:'g',round:1}],events:[{id:'event',inoculationId:'first',date:'2026-01-03',kind:'Messwert eingetragen'}]};
+	assert.equal(contextFor(data,item).substrate,'Altes Rezept');
+	assert.equal(contextFor(data,item).species,'Alter Pilz');
+	assert.deepEqual(timelineFor(data,item).map(row=>row.kind),['Beimpfung','Fruchtbildung','Ernte · Durchgang 1']);
+	assert.equal(intervalFor(item,'2026-01-06').duration,5);
+	assert.equal(intervalFor({...item,status:'Kontaminiert'},'2026-01-06').end,null);
+});
+test('Wachstum trennt UUIDs, unbekannte Werte und negative Zeitabstände',()=>{
+	const rows=[{id:'first',serial:'Gleich',date:'2026-01-02'},{id:'second',serial:'Gleich',date:'2026-01-02'}];
+	const data={measurements:[{inoculationId:'first',date:'2026-01-03',kind:'Temperatur',unit:'C',value:-2},{inoculationId:'second',date:'2026-01-03',kind:'Temperatur',unit:'C',value:0},{inoculationId:'first',date:'2026-01-01',kind:'Temperatur',unit:'C',value:5},{inoculationId:'first',date:'2026-01-04',kind:'Temperatur',unit:'C',value:''}]};
+	const series=growthSeries(data,rows,'Temperatur','C');
+	assert.equal(series.length,2);
+	assert.equal(series[0].points.length,1);
+	assert.equal(series[0].points[0].y,-2);
+	assert.equal(series[1].points[0].y,0);
+});

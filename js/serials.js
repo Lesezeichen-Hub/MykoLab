@@ -47,7 +47,7 @@ export function normalizeSnapshotSerials(snapshot){
 }
 
 // Counter, Kollisionsprüfung und Datensatz werden in derselben IndexedDB-Transaktion geschrieben.
-export async function persistWithSerial(type,item,event){
+export async function persistWithSerial(type,item,event,prepare=null){
   const rule=SERIAL_RULES[type];if(!rule)throw Error('Unbekannter Kennungsbereich');
   const database=await openDb(),stores=event?[type,'settings','events']:[type,'settings'];
   return new Promise((resolve,reject)=>{
@@ -58,7 +58,13 @@ export async function persistWithSerial(type,item,event){
     tx.oncomplete=()=>resolve(item);
     tx.onerror=()=>reject(writeError(failure||tx.error)||new Error('Speichern fehlgeschlagen'));
     tx.onabort=()=>reject(writeError(failure||tx.error)||new Error('Speichern abgebrochen'));
-    const write=()=>{item.codeKey=canonicalSerial(item[rule.field]);records.put(item);if(event)tx.objectStore('events').put(event)};
+    const commit=()=>{item.codeKey=canonicalSerial(item[rule.field]);records.put(item);if(event)tx.objectStore('events').put(event)};
+    const write=()=>{
+      if(!prepare){commit();return}
+      records.get(item.id).onsuccess=result=>{
+        try{event=prepare(item,result.target.result,event);commit()}catch(error){abort(error.message)}
+      };
+    };
     const requested=String(item[rule.field]??'').trim();
     if(requested){
       item[rule.field]=requested;

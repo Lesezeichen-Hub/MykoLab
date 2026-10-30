@@ -3,3 +3,6 @@ node_modules/
 test-results/
 tests/smoke-backup.json
 tests/smoke-v1-backup.json
+tests/smoke-dated-backup.json
+tests/smoke-*.png
+tests/smoke-*.csv
