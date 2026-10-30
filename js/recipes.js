@@ -1,0 +1,3 @@
+const mass={mg:.001,g:1,kg:1000},volume={ml:1,l:1000};
+export function scaleRecipe(ingredients,factor){if(!Number.isFinite(factor)||factor<=0)throw Error('Skalierfaktor muss positiv sein');return ingredients.map(i=>({...i,amount:Number(i.amount)*factor}))}
+export function recipeTotals(ingredients){const totals={massG:0,volumeMl:0,other:{}};for(const item of ingredients){const amount=Number(item.amount);if(!Number.isFinite(amount)||amount<0)continue;if(item.unit in mass)totals.massG+=amount*mass[item.unit];else if(item.unit in volume)totals.volumeMl+=amount*volume[item.unit];else totals.other[item.unit]=(totals.other[item.unit]||0)+amount}return totals}
