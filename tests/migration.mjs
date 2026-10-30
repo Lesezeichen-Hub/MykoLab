@@ -1,0 +1,21 @@
+import {chromium} from 'playwright';
+const browser=await chromium.launch({headless:true,channel:'chrome'});
+const context=await browser.newContext();
+const page=await context.newPage();
+const base=process.env.MYKOLAB_TEST_URL||'http://127.0.0.1:8765';
+await page.goto(base+'/tests/blank.html');
+await page.evaluate(async()=>{
+  const {STORES}=await import('../js/schema.js');
+  const request=indexedDB.open('MykoLab',1);
+  request.onupgradeneeded=()=>{for(const [name,indexes] of Object.entries(STORES)){const store=request.result.createObjectStore(name,{keyPath:'id'});for(const index of indexes)store.createIndex(index,index,{unique:name==='inoculations'&&index==='serial'})}};
+  const db=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+  await new Promise((resolve,reject)=>{const tx=db.transaction(['substrates','cultures','experiments','inoculations'],'readwrite');tx.objectStore('substrates').put({id:'s1',name:'Alt 1',number:'SUB-2026-0008'});tx.objectStore('substrates').put({id:'s2',name:'Alt 2',number:'SUB-2026-0008'});tx.objectStore('substrates').put({id:'s3',name:'Alt 3',number:''});tx.objectStore('cultures').put({id:'c1',name:'Kultur alt'});tx.objectStore('experiments').put({id:'e1',title:'Experiment alt',number:'EXP-2025-0042'});tx.objectStore('inoculations').put({id:'i1',serial:'ALT-42'});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});db.close();
+});
+await page.goto(base+'/index.html');
+await page.locator('#nav button').first().waitFor();
+const result=await page.evaluate(async()=>{const {db}=await import('./js/db.js');return{substrates:await db.all('substrates'),cultures:await db.all('cultures'),experiments:await db.all('experiments'),inoculations:await db.all('inoculations')}});
+const codes=result.substrates.map(x=>x.number);
+if(new Set(codes).size!==3||!codes.includes('SUB-2026-0008')||!codes.some(x=>/^SUB-2026-\d{4}$/.test(x)&&x!=='SUB-2026-0008'))throw Error('Substrat-Migration fehlgeschlagen');
+if(!/^KUL-\d{4}-\d{4}$/.test(result.cultures[0].code)||result.experiments[0].number!=='EXP-2025-0042'||result.inoculations[0].serial!=='ALT-42')throw Error('Historische Kennungen wurden nicht korrekt erhalten');
+console.log('SCHEMA V1 → V2 MIGRATION OK');
+await browser.close();

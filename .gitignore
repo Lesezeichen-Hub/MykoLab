@@ -2,3 +2,4 @@ node_modules/
 .npm-cache/
 test-results/
 tests/smoke-backup.json
+tests/smoke-v1-backup.json

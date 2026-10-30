@@ -18,6 +18,19 @@ Der Speicher gehört zur **Origin** aus Protokoll, Hostname und Port. Ein Wechse
 - Vollständiges JSON-Backup mit Schema-Version sowie Zusammenführen oder Ersetzen nach Vorschau und Bestätigung.
 - Lokaler SQLite-Import der Tabellen `Substrate` und `Beimpfungen` per sql.js/WASM im Worker. Unbekannte Wachstumstabellen können manuell über Seriennummer, Datum und Wert zugeordnet werden. `Substratmischung` bleibt historische Beschreibung; Stammspalten und Originalzeilen bleiben im Legacy-Bereich des Importdatensatzes. `SubstratIndex` wird über die ursprüngliche `Index`-Spalte zu einer neuen UUID aufgelöst. Ertragswerte werden nur mit bestätigter Einheit übernommen. Eine wiederholt importierte identische Datei wird am SHA-256-Fingerprint erkannt.
 
+## Kennungsschema
+
+| Bereich | Automatische Kennung | Beispiel |
+|---|---|---|
+| Substratrezept | `SUB-JJJJ-NNNN` | `SUB-2026-0001` |
+| Individuelle Kultur | `KUL-JJJJ-NNNN` | `KUL-2026-0001` |
+| Beimpfung | `BEP-JJJJ-NNNN` | `BEP-2026-0001` |
+| Experiment | `EXP-JJJJ-NNNN` | `EXP-2026-0001` |
+
+`JJJJ` ist das Jahr der Anlage, `NNNN` eine je Bereich und Jahr fortlaufende Zahl. Das Feld darf leer bleiben; die Kennung wird beim Speichern vergeben. Eine eigene Kennung ist weiterhin möglich, etwa für vorhandene Etiketten. Groß- und Kleinschreibung sowie Rand-Leerzeichen zählen bei der Kollisionsprüfung nicht als Unterschied. Beim Duplizieren wird immer eine neue Kennung erzeugt. Die Vergabe erfolgt zusammen mit dem Datensatz in einer IndexedDB-Transaktion und ist damit auch bei zwei geöffneten Tabs eindeutig. Interne Beziehungen verwenden weiterhin UUIDs. Pilzarten und Stämme werden über Namen und UUIDs geführt; Messungen und Ernten sind Ereignisse einer Beimpfung und erhalten nur eine interne UUID.
+
+Das Schema-Upgrade auf Datenbankversion 2 ergänzt fehlende Kennungen und löst vorhandene Dubletten auf, ohne eindeutige historische Kennungen umzubenennen. Backups aus Schema-Version 1 werden bei der Wiederherstellung entsprechend angepasst. Importierte Substratrezepturen erhalten eine stabile `SUB-IMP-…`-Kennung aus dem Dateifingerprint und dem historischen Index; der Originalindex bleibt unter `legacy.index` erhalten. Historische Beimpfungsseriennummern bleiben erhalten.
+
 ## SQLite-Migration
 
 Unter **Import / Export** eine `.db`, `.sqlite` oder `.sqlite3` auswählen und **Datei untersuchen** anklicken. Die Anwendung liest die Datei im Browser; die Ursprungsdatei wird nicht verändert und nicht hochgeladen. Die Vorschau zeigt erkannte Tabellen, Datensatzzahlen und Probleme. Historische Ertragseinheit und Konfliktstrategie auswählen, dann den Import ausdrücklich bestätigen. Für separate Wachstumstabellen können Seriennummer, Datum und Messwert manuell zugeordnet werden. Ungültige Daten oder fehlende Substratreferenzen sperren derzeit den gesamten Import. Synthetische Altschemata liegen unter `tests/*.sqlite`.
@@ -28,7 +41,7 @@ Unter **Import / Export** eine `.db`, `.sqlite` oder `.sqlite3` auswählen und *
 
 ## Entwicklung und Tests
 
-`npm install` und `npm test` führen die Kernfunktionstests aus. Für den Browser-Smoke-Test `node tools/serve.mjs` starten und in einem zweiten Terminal `node tests/smoke.mjs` ausführen. Der Test verwendet Playwright und eine lokal installierte Chrome-Version. Er legt synthetische Daten an und prüft Persistenz, Diagramm, Foto, QR-Kennung, Backup/Wiederherstellung, SQLite-Import, Wiederholungsimport, Wachstumsmigration und fehlerhafte Referenzen.
+`npm install` und `npm test` führen die Kernfunktionstests aus. Für Browsertests `node tools/serve.mjs` starten und in einem zweiten Terminal `node tests/smoke.mjs` sowie `node tests/migration.mjs` ausführen. Die Tests verwenden Playwright und eine lokal installierte Chrome-Version. Sie prüfen unter anderem automatische und manuelle Kennungen, parallele Anlagen, Dublettenschutz, die Schema-Migration von Version 1 auf 2, alte Backups, Persistenz, Diagramme, Fotos, QR-Kennungen und SQLite-Importe.
 
 Laufzeitbibliotheken: [sql.js 1.15.2](https://github.com/sql-js/sql.js) und [qrcode-generator 2.0.4](https://github.com/kazuhikoarase/qrcode-generator), lokal in `vendor/`, beide MIT-lizenziert. Keine externen Laufzeitdienste.
 
